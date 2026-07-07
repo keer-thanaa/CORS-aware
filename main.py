@@ -1,36 +1,26 @@
 import time
 import uuid
 
-import jwt
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 
-# ---- Task 1 config (Metrics API) ----
+# ---- Assigned config ----
 ALLOWED_ORIGIN = "https://dash-n818qz.example.com"
 EMAIL = "24f2003019@ds.study.iitm.ac.in"
 
-# ---- Task 2 config (Token Verification) ----
-ISSUER = "https://idp.exam.local"
-AUDIENCE = "tds-vtxbjojl.apps.exam.local"
-PUBLIC_KEY = """-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2okOHspNjgA+2rTLbeuY
-cxiP/hG8C6Sb9iwg3yiLAA4HCnpITcbWCSelbvbYGuc3EbNy4xFyf5Cbj5DHJMID
-EkryOgyd2giIIIBOUBj8S63uGcnRpOBh9NFatfNwheKuzsPuVNldu6A9cNteNpXc
-WyJjG2axVfmq7i6SuKr1JoWYG7xTTAvKPujSl4OtsQfO3h5NepzdfXpr28oNnzfW
-ed+zclR6BcmNNo/WVfJ4xyCLSf0BCOgdTgW6PdaChd1l9VDetJZVEgC5tkyvXsfI
-SI6iyrYbKR0NEBSqq4XkadEjsCs4F1RncsS4LlgniT7GlkL9Mce3b0wGLs9/7ZIX
-dQIDAQAB
------END PUBLIC KEY-----"""
+app = FastAPI(title="CORS-Aware Metrics API")
 
-app = FastAPI(title="OAuth/CORS Combined API")
-
+# Strict per-origin CORS: only ALLOWED_ORIGIN ever gets the ACAO header.
+# Starlette's CORSMiddleware handles preflight (OPTIONS) automatically:
+# - allowed origin -> Access-Control-Allow-Origin echoed back
+# - any other origin -> no ACORS headers added (request still gets a response,
+#   but without ACAO, so the browser/grader treats it as rejected)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[ALLOWED_ORIGIN],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -45,8 +35,6 @@ async def add_request_id_and_timing(request: Request, call_next):
     response.headers["X-Process-Time"] = f"{elapsed:.6f}"
     return response
 
-
-# ---------------- Task 1: /stats ----------------
 
 @app.get("/stats")
 async def get_stats(values: str):
@@ -78,34 +66,6 @@ async def get_stats(values: str):
     }
 
 
-# ---------------- Task 2: /verify ----------------
-
-class VerifyRequest(BaseModel):
-    token: str
-
-
-@app.post("/verify")
-async def verify_token(body: VerifyRequest):
-    try:
-        claims = jwt.decode(
-            body.token,
-            PUBLIC_KEY,
-            algorithms=["RS256"],
-            audience=AUDIENCE,
-            issuer=ISSUER,
-            options={"require": ["exp", "iss", "aud"]},
-        )
-    except jwt.PyJWTError:
-        return JSONResponse(status_code=401, content={"valid": False})
-
-    return {
-        "valid": True,
-        "email": claims.get("email"),
-        "sub": claims.get("sub"),
-        "aud": claims.get("aud"),
-    }
-
-
 @app.get("/")
 async def root():
-    return {"status": "ok", "service": "oauth-cors-combined-api"}
+    return {"status": "ok", "service": "cors-aware-metrics-api"}
